@@ -6,11 +6,11 @@
 #include <string.h>
 
 #define MAX_INPUT_LENGTH 50
-#define CURR_NUM_FILES 0
+int CURR_NUM_FILES = 0;
 
 struct FileAccessInfo {
     char filename[50];
-    int readers ;
+    int readers;
     int writers;
 };
 
