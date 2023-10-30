@@ -2,14 +2,15 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
 #define MAX_INPUT_LENGTH 50
 int CURR_NUM_FILES = 0;
 
 struct FileAccessInfo {
   char *filename;
   int readers;
-  int rl;
-  int wl;
+  pthread_mutex_t wrt;
+  pthread_mutex_t mutex;
 };
 
 struct FileAccessInfo files[16];
@@ -32,28 +33,63 @@ void execute_read_command(char *file_name){
   long size = ftell(file);
   fclose(file);
   int ind = file_index(file_name);
-
   if(ind==CURR_NUM_FILES)
   { 
     files[CURR_NUM_FILES].filename = (char*)malloc(strlen(file_name)+1);
     strcpy(files[CURR_NUM_FILES].filename, file_name);
-    files[CURR_NUM_FILES].readers=1;
+    files[CURR_NUM_FILES].readers=0;
+    pthread_mutex_init(&files[CURR_NUM_FILES].wrt, NULL);
+    pthread_mutex_init(&files[CURR_NUM_FILES].mutex, NULL);
     CURR_NUM_FILES++;
-  }else{
-    files[ind].readers++;
   }
+  pthread_mutex_lock(&files[ind].mutex);
+  files[ind].readers++;
+  if(files[ind].readers==1){
+    pthread_mutex_lock(&files[ind].wrt);
+  }
+  pthread_mutex_unlock(&files[ind].mutex);
+
+  
   printf("read %s of %lu bytes with %d readers and %d writers present\n", file_name, size, files[ind].readers, 0);
-  //printf("%s", files[ind].filename);
+  pthread_mutex_lock(&files[ind].mutex);
+  files[ind].readers--;
+  if(files[ind].readers==0){
+    pthread_mutex_unlock(&files[ind].wrt);
+  }
+  pthread_mutex_unlock(&files[ind].mutex);
   return;
 }
 
 void execute_write1_command(char *file_names){
   char *filename1 = strtok(file_names, " ");
-  char *filename2 = strtok(NULL, "");  
+  char *filename2 = strtok(NULL, "");
+  int i = file_index(filename1);
+  if(i==CURR_NUM_FILES)
+  { 
+    files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename1)+1);
+    strcpy(files[CURR_NUM_FILES].filename, filename1);
+    files[CURR_NUM_FILES].readers=0;
+    pthread_mutex_init(&files[CURR_NUM_FILES].wrt, NULL);
+    pthread_mutex_init(&files[CURR_NUM_FILES].mutex, NULL);
+    CURR_NUM_FILES++;
+  }
+  int j = file_index(filename2);
+  if(j==CURR_NUM_FILES)
+  { 
+    files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename2)+1);
+    strcpy(files[CURR_NUM_FILES].filename, filename2);
+    files[CURR_NUM_FILES].readers=0;
+    pthread_mutex_init(&files[CURR_NUM_FILES].wrt, NULL);
+    pthread_mutex_init(&files[CURR_NUM_FILES].mutex, NULL);
+    CURR_NUM_FILES++;
+  }
+  pthread_mutex_lock(&files[i].wrt);
+  pthread_mutex_lock(&files[j].wrt);
   FILE* file1 = fopen(filename1, "a");  // Open the first file in write mode
   FILE* file2 = fopen(filename2, "r");  // Open the second file in read mode
+  long size = ftell(file2);
+  printf("size: %ld\n", size);
   fseek(file1, 0, SEEK_END);
-
   if(ftell(file1) > 0){
     fprintf(file1, "\n"); // Add a new line if the file is not empty
   }
@@ -66,28 +102,28 @@ void execute_write1_command(char *file_names){
   fclose(file1);
   fclose(file2);
 
-  FILE *file = fopen(filename2, "rb"); // Open the file in binary read mode
-  // Seek to the end of the file and get the file size
-  long size = ftell(file);
-  fclose(file);
+ 
 
-  int ind = update_writers(filename1);
-  if(ind==CURR_NUM_FILES)
-  {
-    // files[CURR_NUM_FILES].filename=filename1;
-    files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename1)+1);
-    strcpy(files[CURR_NUM_FILES].filename, filename1);
-    files[CURR_NUM_FILES].readers=0;
-    CURR_NUM_FILES++;
-  }
-  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename1, size, files[ind].readers, 1);
-  
+  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename1, size, files[i].readers, 1);
+  pthread_mutex_unlock(&files[j].wrt);
+  pthread_mutex_unlock(&files[i].wrt);
   return;
 }
 void execute_write2_command(char* cmd){
   char* filename = strtok(cmd, " ");  // Get the filename
   char* text = strtok(NULL, "");  // Get the text to write to the file
   long size = strlen(text);
+  int ind = file_index(filename);
+   if(ind==CURR_NUM_FILES)
+  { 
+    files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename)+1);
+    strcpy(files[CURR_NUM_FILES].filename, filename);
+    files[CURR_NUM_FILES].readers=0;
+    pthread_mutex_init(&files[CURR_NUM_FILES].wrt, NULL);
+    pthread_mutex_init(&files[CURR_NUM_FILES].mutex, NULL);
+    CURR_NUM_FILES++;
+  }
+  pthread_mutex_lock(&files[ind].wrt);
   FILE* file = fopen(filename, "a");
   fseek(file, 0, SEEK_END);  // Go to end of file
   if(ftell(file) > 0){
@@ -96,16 +132,16 @@ void execute_write2_command(char* cmd){
   fprintf(file, "%s", text);
   fclose(file);
 
-  int ind = file_index(filename);
-  if(ind==CURR_NUM_FILES)
-  {
-    files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename)+1);
-    strcpy(files[CURR_NUM_FILES].filename, filename);
-    files[CURR_NUM_FILES].readers=0;
-    CURR_NUM_FILES++;
-  }
-  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename, size, files[ind].readers, 1);
   
+  // if(ind==CURR_NUM_FILES)
+  // {
+  //   files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename)+1);
+  //   strcpy(files[CURR_NUM_FILES].filename, filename);
+  //   files[CURR_NUM_FILES].readers=0;
+  //   CURR_NUM_FILES++;
+  // }
+  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename, size, files[ind].readers, 1);
+  pthread_mutex_unlock(&files[ind].wrt);
   return;
 }
 
