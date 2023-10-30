@@ -8,27 +8,16 @@ int CURR_NUM_FILES = 0;
 struct FileAccessInfo {
   char *filename;
   int readers;
-  int writers;
+  int rl;
+  int wl;
 };
 
 struct FileAccessInfo files[16];
 
-int update_writers(char *file_name){
+int file_index(char *file_name){
   for (int i = 0; i < CURR_NUM_FILES; i++)
   {
     if(strncmp(files[i].filename, file_name, strlen(file_name))==0){
-      files[i].writers++;
-      return i;
-    }
-  }
-  return CURR_NUM_FILES;
-}
-
-int update_readers(char *file_name){
-  for (int i = 0; i < CURR_NUM_FILES; i++)
-  {
-    if(strncmp(files[i].filename, file_name, strlen(file_name))==0){
-      files[i].readers++;
       return i;
     }
   }
@@ -41,20 +30,19 @@ void execute_read_command(char *file_name){
   // Seek to the end of the file and get the file size
   fseek(file, 0, SEEK_END);
   long size = ftell(file);
-  int ind = update_readers(file_name);
-  //printf("ind: %d\n", ind);
   fclose(file);
+  int ind = file_index(file_name);
 
   if(ind==CURR_NUM_FILES)
   { 
-    // files[CURR_NUM_FILES].filename=file_name;
     files[CURR_NUM_FILES].filename = (char*)malloc(strlen(file_name)+1);
     strcpy(files[CURR_NUM_FILES].filename, file_name);
     files[CURR_NUM_FILES].readers=1;
-    files[CURR_NUM_FILES].writers=0;
     CURR_NUM_FILES++;
+  }else{
+    files[ind].readers++;
   }
-  printf("read %s of %lu bytes with %d readers and %d writers present\n", file_name, size, files[ind].readers, files[ind].writers);
+  printf("read %s of %lu bytes with %d readers and %d writers present\n", file_name, size, files[ind].readers, 0);
   //printf("%s", files[ind].filename);
   return;
 }
@@ -62,11 +50,9 @@ void execute_read_command(char *file_name){
 void execute_write1_command(char *file_names){
   char *filename1 = strtok(file_names, " ");
   char *filename2 = strtok(NULL, "");  
-  //sscanf(file_names, "%s %s", filename1, filename2);
-  // printf("filename1: %s\n", filename1);
-  // printf("filename2: %s\n", filename2);
   FILE* file1 = fopen(filename1, "a");  // Open the first file in write mode
   FILE* file2 = fopen(filename2, "r");  // Open the second file in read mode
+  fseek(file1, 0, SEEK_END);
 
   if(ftell(file1) > 0){
     fprintf(file1, "\n"); // Add a new line if the file is not empty
@@ -82,7 +68,6 @@ void execute_write1_command(char *file_names){
 
   FILE *file = fopen(filename2, "rb"); // Open the file in binary read mode
   // Seek to the end of the file and get the file size
-  fseek(file, 0, SEEK_END);
   long size = ftell(file);
   fclose(file);
 
@@ -93,10 +78,9 @@ void execute_write1_command(char *file_names){
     files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename1)+1);
     strcpy(files[CURR_NUM_FILES].filename, filename1);
     files[CURR_NUM_FILES].readers=0;
-    files[CURR_NUM_FILES].writers=1;
     CURR_NUM_FILES++;
   }
-  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename1, size, files[ind].readers, files[ind].writers);
+  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename1, size, files[ind].readers, 1);
   
   return;
 }
@@ -104,9 +88,6 @@ void execute_write2_command(char* cmd){
   char* filename = strtok(cmd, " ");  // Get the filename
   char* text = strtok(NULL, "");  // Get the text to write to the file
   long size = strlen(text);
-  // printf("filename: %s\n", filename);
-  // printf("text: %s\n", text);
-  // printf("size: %lu\n", size);
   FILE* file = fopen(filename, "a");
   fseek(file, 0, SEEK_END);  // Go to end of file
   if(ftell(file) > 0){
@@ -115,17 +96,15 @@ void execute_write2_command(char* cmd){
   fprintf(file, "%s", text);
   fclose(file);
 
-  int ind = update_writers(filename);
+  int ind = file_index(filename);
   if(ind==CURR_NUM_FILES)
   {
-    // files[CURR_NUM_FILES].filename=filename;
     files[CURR_NUM_FILES].filename = (char*)malloc(strlen(filename)+1);
     strcpy(files[CURR_NUM_FILES].filename, filename);
     files[CURR_NUM_FILES].readers=0;
-    files[CURR_NUM_FILES].writers=1;
     CURR_NUM_FILES++;
   }
-  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename, size, files[ind].readers, files[ind].writers);
+  printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename, size, files[ind].readers, 1);
   
   return;
 }
