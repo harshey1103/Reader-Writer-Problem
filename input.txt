@@ -1,0 +1,4 @@
+read test1.txt
+read test2.txt
+read test3.txt
+write 1 test1.txt test2.txt
