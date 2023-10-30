@@ -87,8 +87,6 @@ void execute_write1_command(char *file_names){
   pthread_mutex_lock(&files[j].wrt);
   FILE* file1 = fopen(filename1, "a");  // Open the first file in write mode
   FILE* file2 = fopen(filename2, "r");  // Open the second file in read mode
-  long size = ftell(file2);
-  printf("size: %ld\n", size);
   fseek(file1, 0, SEEK_END);
   if(ftell(file1) > 0){
     fprintf(file1, "\n"); // Add a new line if the file is not empty
@@ -101,7 +99,10 @@ void execute_write1_command(char *file_names){
 
   fclose(file1);
   fclose(file2);
-
+  file2 = fopen(filename2, "rb");
+  fseek(file2, 0, SEEK_END);
+  long size = ftell(file2);
+  fclose(file2);
  
 
   printf("writing to %s added %lu bytes with %d readers and %d writers present\n", filename1, size, files[i].readers, 1);
